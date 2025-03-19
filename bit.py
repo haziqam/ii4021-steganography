@@ -6,11 +6,11 @@ type Bit = Literal[0, 1]
 def get_lsb(n: int) -> Bit:
     return n & 1
 
-def set_lsb(n: int, bit: int) -> Bit:
+def set_lsb(n: int, bit: Bit) -> Bit:
     bit = bit & 1
     return (n & ~1) | bit
 
-def get_bit_at_index(n: int, index: int) -> int:
+def get_bit_at_index(n: int, index: int) -> Bit:
     """
     Note: Index 0: LSB
     """
