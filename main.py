@@ -91,6 +91,8 @@ if __name__ == "__main__":
                 case SteganoMethod.BPCS:
                     from image_bpcs import image_bpcs
                     result = image_bpcs(image, is_embed, message, seed)
+                case _:
+                    result = None
 
             if is_embed:
                 img: Image = result
