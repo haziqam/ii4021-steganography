@@ -4,6 +4,18 @@ from enum import Enum
 
 from PIL import Image
 
+
+class ProgramMode(Enum):
+    EMBED = "embed"
+    EXTRACT = "extract"
+
+    def __str__(self):
+        return self.value
+
+    def is_embed(self):
+        return self == self.EMBED
+
+
 class SteganoFormat(Enum):
     IMAGE = "image"
     AUDIO = "audio"
@@ -24,14 +36,15 @@ class SteganoMethod(Enum):
 if __name__ == "__main__":
     argparse = ArgumentParser("II4021 Steganography tool")
     argparse.add_argument("file", type=str, help="input file path to embed message")
+    argparse.add_argument("mode", type=ProgramMode, choices=list(ProgramMode), help="mode to embed or extract message in the stegano media")
     argparse.add_argument(
-        "--format",
+        "format",
         type=SteganoFormat,
         choices=list(SteganoFormat),
         help="file format for steganography",
     )
     argparse.add_argument(
-        "--method",
+        "method",
         type=SteganoMethod,
         choices=list(SteganoMethod),
         help="Steganography method for the file specified, note that the method must be suitable with the file format",
@@ -50,27 +63,42 @@ if __name__ == "__main__":
     )
     args = argparse.parse_args()
     file_path: str = args.file
+    mode: ProgramMode = args.mode
     stegano_format: SteganoFormat = args.format
     stegano_method: SteganoMethod = args.method
     seed: int | None = args.seed
+    out: str = args.out
 
-    print(file_path, stegano_format, seed)
+    is_embed = mode.is_embed()
+    if is_embed:
+        message_lines: list[str] = []
+        for line in sys.stdin:
+            message_lines.append(line)
 
-    message_lines: list[str] = []
-    for line in sys.stdin:
-        message_lines.append(line)
-
-    message = "".join(message_lines)
+        message = "".join(message_lines)
+    else:
+        message = None
 
     match stegano_format:
         # Use lazy import, does it make sense here? 🤔
         case SteganoFormat.IMAGE:
+            image = Image.open(file_path)
             match stegano_method:
                 case SteganoMethod.LSB:
                     from image_lsb import image_lsb
+                    result = image_lsb(image, is_embed, message, seed)
+
                 case SteganoMethod.BPCS:
                     from image_bpcs import image_bpcs
-            pass
+                    result = image_bpcs(image, is_embed, message, seed)
+
+            if is_embed:
+                img: Image = result
+                img.save(out)
+            else:
+                with open(out, "w") as f:
+                    f.write(result)
+
         case SteganoFormat.AUDIO:
             pass
         case SteganoFormat.VIDEO:

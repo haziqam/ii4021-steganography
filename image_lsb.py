@@ -66,9 +66,9 @@ def extract_message(image: Image, sequence: list[int]) -> str:
     return "".join(message)
 
 
-def image_lsb(image: Image, embed: bool, message: str = None, seed: int = None) -> Image | str:
+def image_lsb(image: Image, embed: bool, message: str = None, seed: int = None):
     """Wrapper function to embed or extract message from image using LSB method"""
-    sequence = create_sequence((len(message) + 1) * 8, image.width * image.height, seed)
+    sequence = create_sequence(image.width * image.height, seed)
     if embed:
         assert message is not None
         return embed_message(image, message, sequence)
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     message = "secretmessage"
     seed = 3
 
-    sequence = create_sequence((len(message) + 1) * 8, image.width * image.height, seed)
+    sequence = create_sequence(image.width * image.height, seed)
 
     embedded_image = embed_message(image, message, sequence)
 
