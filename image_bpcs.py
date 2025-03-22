@@ -140,7 +140,7 @@ def extract_message(image: np.ndarray, sequence: list[int], plane: int, message_
 
 
 def image_bpcs(image: np.ndarray, embed: bool, message: str = None, threshold: float = 0.3, seed: int = None):
-    """Wrapper function to embed or extract message from image using LSB method"""
+    """Wrapper function to embed or extract message from image using BPCS method"""
     sequence = create_sequence(image.size, seed)
     if embed:
         assert message is not None

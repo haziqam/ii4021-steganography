@@ -106,4 +106,11 @@ if __name__ == "__main__":
         case SteganoFormat.AUDIO:
             pass
         case SteganoFormat.VIDEO:
-            pass
+            import video_lsb
+            video = video_lsb.video_to_frames(file_path)
+            result = video_lsb.video_lsb(video, is_embed, message, seed)
+            if is_embed:
+                video_lsb.frames_to_video(result.astype(np.uint8), out)
+            else:
+                with open(out, "w") as f:
+                    f.write(result)
