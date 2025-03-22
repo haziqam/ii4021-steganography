@@ -38,7 +38,6 @@ def extract_message(frames: list[np.ndarray], seed: int):
     msg_sequence = create_sequence(start_frame.size, seed)
     frames_count_str = image_lsb.extract_message(start_frame, msg_sequence)
     frames_count = decode_int(bytes(ord(x) for x in frames_count_str))
-    frames_count = 1
 
     message_parts: list[str] = []
     for frame_idx in frames_sequence[1:frames_count + 1]:
