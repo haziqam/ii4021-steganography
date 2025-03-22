@@ -1,108 +1,199 @@
 import numpy as np
 from PIL import Image
 
-from bit import Bit, get_lsb, set_lsb, get_bit_at_index, set_bit_at_index
-from utils import create_sequence
+from bit import get_bit_at_index, set_bit_at_index
+from image import get_bit_at_position, set_bit_at_position
+from utils import create_sequence, reshuffle_sequence, encode_int, decode_int
+
+# TODO: Explore case ukuran image ga cukup buat nyimpen pesan
 
 
-# TODO:
-# 1) Embed-nya ga harus di byte blue (bisa dibuat ganti-gantian)
-# 2) Explore case ukuran image ga cukup buat nyimpen pesan
-# 3) Explore case image tidak RGB (grayscale ato item putih)
-# 3) Explore cara nyimpen message length di image
+def get_complexity(matrix: np.ndarray, plane: int, channel: int | None = None) -> float:
+    height, width = matrix.shape
+
+    k = 0
+    n = height * width
+
+    print([get_bit_at_position(matrix[0, col], plane, channel) for col in range(width)])
+    # curr_row = np.apply_along_axis(get_bit_at_position, 1, )
+    curr_row = np.array([get_bit_at_position(matrix, 0, col, plane) for col in range(width)])
+    print(curr_row)
+    for row in range(1, width):
+        next_row = np.array([get_bit_at_position(matrix[row, col], plane) for col in range(width)])
+        print(curr_row)
+        print(curr_row[1:])
+        k += np.sum(curr_row[:-1] == curr_row[1:])
+        k += np.sum(curr_row == next_row)
+        curr_row = next_row
+
+    return k/n
 
 
-def get_complexity(matrix: Image | np.ndarray, plane: int, channel: int | None = None) -> float:
-    width, height = matrix.size
-    for x in range(width):
-        right_bit = 0
-        for y in range(height):
-            curr_bit = get_bit_at_position(matrix, x, y, plane, channel)
+def embed_message(image: np.ndarray, message: str, sequence: list[int], plane: int, msg_length: int = None) -> Image:
+    if plane == 0:
+        # Prepend message length to message (as an 8-bit char)
+        message_length = encode_int(msg_length)
+        message = message_length + message
 
-
-def set_bit_at_position(pixels, x: int, y: int, message_bit: Bit, plane: int, channel: int | None = None):
-    if channel is None:
-        byte = set_bit_at_index(pixels[x, y], plane, message_bit)
-        pixels[x, y] = byte
+    if image.ndim == 3:
+        _, width, channels = image.shape
+        height_mod = width * channels
+        # Embed message
+        for idx, c in enumerate(message):
+            seq_idx = idx * 8
+            for i in range(8):
+                target_idx = sequence[seq_idx + i]
+                x = target_idx // height_mod
+                y = (target_idx % height_mod) // channels
+                channel = target_idx % channels
+                message_bit = get_bit_at_index(ord(c), i)
+                set_bit_at_position(image, x, y, message_bit, channel, plane)
     else:
-        byte = set_bit_at_index(pixels[x, y][0], plane, message_bit)
-        pixels[x, y][channel] = byte
-
-
-def get_bit_at_position(pixels, x: int, y: int, plane: int, channel: int | None = None) -> Bit:
-    if channel is None:
-        return get_bit_at_index(pixels[x, y], plane)
-    else:
-        return get_bit_at_index(pixels[x, y][channel], plane)
-
-
-def embed_message(image: Image, message: str, sequence: list[int]) -> Image:
-    pixels = image.load()
-    width, _ = image.size
-
-    # Prepend message length to message (as an 8-bit char)
-    message_length_in_byte = chr(len(message))
-    message = message_length_in_byte + message
-
-    # Embed message
-    for idx, c in enumerate(message):
-        for i in range(8):
-            target_idx = sequence[idx * 8 + i]
-            x = target_idx % width
-            y = target_idx // width
-            message_bit = get_bit_at_index(ord(c), i)
-            set_lsb_at_position(pixels, x, y, message_bit)
+        _, width = image.shape
+        # Embed message
+        for idx, c in enumerate(message):
+            seq_idx = idx * 8
+            for i in range(8):
+                target_idx = sequence[seq_idx + i]
+                x = target_idx % width
+                y = target_idx // width
+                message_bit = get_bit_at_index(ord(c), i)
+                set_bit_at_position(image, x, y, message_bit)
 
     return image
 
 
-def extract_message(image: Image, sequence: list[int]) -> str:
-    pixels = image.load()
-    width, _ = image.size
+def extract_message(image: np.ndarray, sequence: list[int], plane: int, message_length: int = None):
+    if image.ndim == 3:
+        _, width, channels = image.shape  # Extract message length (first 64 bits)
+        height_mod = width * channels
 
-    # Extract message length (first 8 bits)
-    message_length = 0
-    for i in range(8):
-        target_idx = sequence[i]
-        x = target_idx % width
-        y = target_idx // width
-        message_bit = get_bit_at_position(pixels, x, y)
-        message_length = set_bit_at_index(message_length, i, message_bit)
+        if plane == 0:
+            # Extract message
+            length_bytes: bytearray = bytearray()
+            for idx in range(8):
+                seq_idx = idx * 8
+                current_byte = 0
+                for j in range(8):
+                    target_idx = sequence[seq_idx + j]
+                    x = target_idx // height_mod
+                    y = (target_idx % height_mod) // channels
+                    channel = target_idx % channels
+                    message_bit = get_bit_at_position(image, x, y, channel, plane)
+                    current_byte = set_bit_at_index(current_byte, j, message_bit)
 
-    # Extract message
-    message: list[str] = []
-    for idx in range(1, message_length + 1):
-        current_byte = 0
-        for j in range(8):
-            target_idx = sequence[idx * 8 + j]
-            x = target_idx % width
-            y = target_idx // width
-            message_bit = get_bit_at_position(pixels, x, y)
-            current_byte = set_bit_at_index(current_byte, j, message_bit)
+                length_bytes.append(current_byte)
+            message_length = decode_int(bytes(length_bytes))
 
-        message.append(chr(current_byte))
+        # Extract message
+        message: list[str] = []
+        for idx in range(8, message_length + 8):
+            seq_idx = idx * 8
+            current_byte = 0
+            for j in range(8):
+                target_idx = sequence[seq_idx + j]
+                x = target_idx // height_mod
+                y = (target_idx % height_mod) // channels
+                channel = target_idx % channels
+                message_bit = get_bit_at_position(image, x, y, channel, plane)
+                current_byte = set_bit_at_index(current_byte, j, message_bit)
 
-    return "".join(message)
+            message.append(chr(current_byte))
+
+    else:
+        _, width, channels = image.shape  # Extract message length (first 64 bits)
+        height_mod = width * channels
+
+        if plane == 0:
+            # Extract message
+            length_bytes: bytearray = bytearray()
+            for idx in range(8):
+                seq_idx = idx * 8
+                current_byte = 0
+                for j in range(8):
+                    target_idx = sequence[seq_idx + j]
+                    x = target_idx % width
+                    y = target_idx // width
+                    message_bit = get_bit_at_position(image, x, y)
+                    current_byte = set_bit_at_index(current_byte, j, message_bit)
+                length_bytes.append(current_byte)
+            message_length = decode_int(bytes(length_bytes))
+
+        # Extract message
+        message: list[str] = []
+        for idx in range(1, message_length + 1):
+            seq_idx = idx * 8
+            current_byte = 0
+            for j in range(8):
+                target_idx = sequence[seq_idx + j]
+                x = target_idx % width
+                y = target_idx // width
+                message_bit = get_bit_at_position(image, x, y, plane)
+                current_byte = set_bit_at_index(current_byte, j, message_bit)
+
+            message.append(chr(current_byte))
+
+    if plane == 0:
+        return "".join(message), message_length
+    else:
+        return "".join(message)
 
 
-def image_bpcs(image: Image, embed: bool, message: str = None, threshold: float = 0.3, seed: int = None) -> Image | str:
+def image_bpcs(image: np.ndarray, embed: bool, message: str = None, threshold: float = 0.3, seed: int = None):
     """Wrapper function to embed or extract message from image using LSB method"""
-    sequence = create_sequence((len(message) + 1) * 8, image.width * image.height, seed)
+    sequence = create_sequence(image.size, seed)
     if embed:
         assert message is not None
-        return embed_message(image, message, sequence)
+        message_parts = [message[i:i + image.size] for i in range(0, len(message), image.size)]
+        for plane, message_part in enumerate(message_parts):
+            msg_length = len(message) if plane == 0 else None
+            embedded_image = embed_message(image, message_part, sequence, plane, msg_length)
+            sequence = reshuffle_sequence(sequence, seed)
+
+        return embedded_image
     else:
-        return extract_message(image, sequence)
+        message_parts = []
+        plane = 0
+        sequence = create_sequence(image.size, seed)
+        msg_part, msg_length = extract_message(image, sequence, plane)
+        message_parts.append(msg_part)
+        msg_length = msg_length - image.size + 8  # extra 8 bytes for embedded message length
+        while msg_length > 0:
+            plane += 1
+            sequence = reshuffle_sequence(sequence, seed)
+            msg_length = image.size if msg_length > image.size else msg_length
+            msg_part = extract_message(image, sequence, plane, )
+            message_parts.append(msg_part)
+            msg_length -= image.size
+
+        return "".join(message_parts)
 
 
 if __name__ == "__main__":
     image_path = "samples/01.bmp"
-    image = Image.open(image_path).convert("RGB")
+    image = np.asarray(Image.open(image_path), dtype=np.int8)
     message = "secretmessage"
     seed = 3
 
-    sequence = create_sequence((len(message) + 1) * 8, image.width * image.height, seed)
+    sequence = create_sequence(image.size, seed)
 
-    embedded_image = embed_message(image, message, sequence)
+    message_parts = [message[i:i + image.size] for i in range(0, len(message), image.size)]
+    for plane, message_part in enumerate(message_parts):
+        msg_length = len(message) if plane == 0 else None
+        embedded_image = embed_message(image, message_part, sequence, plane, msg_length)
+        sequence = reshuffle_sequence(sequence, seed)
 
-    print(extract_message(embedded_image, sequence))
+    message_parts = []
+    plane = 0
+    sequence = create_sequence(image.size, seed)
+    msg_part, msg_length = extract_message(embedded_image, sequence, plane)
+    message_parts.append(msg_part)
+    msg_length = msg_length - image.size + 8  # extra 8 bytes for embedded message length
+    while msg_length > 0:
+        plane += 1
+        sequence = reshuffle_sequence(sequence, seed)
+        msg_length = image.size if msg_length > image.size else msg_length
+        msg_part = extract_message(embedded_image, sequence, plane, )
+        message_parts.append(msg_part)
+        msg_length -= image.size
+    print("".join(message_parts))

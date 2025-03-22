@@ -1,21 +1,22 @@
 from typing import Literal
 
+import numpy as np
 
 type Bit = Literal[0, 1]
 
 def get_lsb(n: int) -> Bit:
-    return n & 1
+    return np.bitwise_and(n, 1)
 
 def set_lsb(n: int, bit: Bit) -> Bit:
     bit = bit & 1
-    return (n & ~1) | bit
+    return np.bitwise_or(np.bitwise_and(n, ~1), bit)
 
 def get_bit_at_index(n: int, index: int) -> Bit:
     """
     Note: Index 0: LSB
     """
     mask = 1 << index
-    return (n & mask) >> index
+    return np.bitwise_and(n, mask) >> index
 
 def set_bit_at_index(n: int, index: int, bit: Bit) -> int:
     """
@@ -25,10 +26,10 @@ def set_bit_at_index(n: int, index: int, bit: Bit) -> int:
 
     if bit == 1:
         mask = 1 << index
-        return n | mask
+        return np.bitwise_or(n, mask)
     
     mask = ~(1 << index)
-    return n & mask
+    return np.bitwise_and(n, mask)
 
 if __name__ == '__main__':
     test = 0b10001001
