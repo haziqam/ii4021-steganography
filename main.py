@@ -2,7 +2,7 @@ import sys
 from argparse import ArgumentParser
 from enum import Enum
 
-from PIL import Image
+import numpy as np
 
 
 class ProgramMode(Enum):
@@ -82,20 +82,22 @@ if __name__ == "__main__":
     match stegano_format:
         # Use lazy import, does it make sense here? 🤔
         case SteganoFormat.IMAGE:
+            from PIL import Image
             image = Image.open(file_path)
+            image_mat = np.asarray(image, dtype=np.int8)
             match stegano_method:
                 case SteganoMethod.LSB:
                     from image_lsb import image_lsb
-                    result = image_lsb(image, is_embed, message, seed)
+                    result = image_lsb(image_mat, is_embed, message, seed)
 
                 case SteganoMethod.BPCS:
                     from image_bpcs import image_bpcs
-                    result = image_bpcs(image, is_embed, message, seed)
+                    result = image_bpcs(image_mat, is_embed, message, seed)
                 case _:
                     result = None
 
             if is_embed:
-                img: Image = result
+                img: Image = Image.fromarray(result.astype(np.uint8))
                 img.save(out)
             else:
                 with open(out, "w") as f:
