@@ -1,8 +1,9 @@
 import numpy as np
 from PIL import Image
-from bit import Bit, get_lsb, set_lsb, get_bit_at_index, set_bit_at_index
 
+from bit import Bit, get_lsb, set_lsb, get_bit_at_index, set_bit_at_index
 from utils import create_sequence, encode_int, decode_int
+
 
 # TODO:
 # 1) Embed-nya ga harus di byte blue (bisa dibuat ganti-gantian)
@@ -20,9 +21,11 @@ def set_lsb_at_position(pixels, x: int, y: int, message_bit: Bit, channel: int =
         b = set_lsb(b, message_bit)
         pixels[x, y, channel] = b
 
+
 def get_lsb_at_position(pixels, x: int, y: int, channel: int = None) -> Bit:
     b = pixels[x, y] if channel is None else pixels[x, y, channel]
     return get_lsb(b)
+
 
 def embed_message(image: np.ndarray, message: str, sequence: list[int]) -> Image:
     # Prepend message length to message (as an 8-bit char)
@@ -56,9 +59,10 @@ def embed_message(image: np.ndarray, message: str, sequence: list[int]) -> Image
 
     return image
 
+
 def extract_message(image: np.ndarray, sequence: list[int]) -> str:
     if image.ndim == 3:
-        _, width, channels = image.shape # Extract message length (first 64 bits)
+        _, width, channels = image.shape  # Extract message length (first 64 bits)
         height_mod = width * channels
         message_length = 0
 
